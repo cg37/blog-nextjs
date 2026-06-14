@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 import createMDX from "@next/mdx";
 import postgres from "postgres";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const sql = postgres(process.env.POSTGRES_URL!, {
   ssl: "allow",
@@ -13,7 +17,7 @@ const nextConfig: NextConfig = {
       return [];
     }
 
-    let redirects = await sql`
+    const redirects = await sql`
       SELECT source, destination, permanent
       FROM redirects;
     `;
@@ -31,7 +35,7 @@ const nextConfig: NextConfig = {
     mdxRs: { mdxType: "gfm" },
   },
   turbopack: {
-    root: ".",
+    root: __dirname,
   },
 };
 
