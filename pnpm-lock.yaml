@@ -85,7 +85,7 @@ importers:
         specifier: ^8.5.10
         version: 8.5.10
       prettier:
-        specifier: '@craig37/lint-config/prettier'
+        specifier: ^3.6.2
         version: 3.8.4
       tailwindcss:
         specifier: ^4.1.8
