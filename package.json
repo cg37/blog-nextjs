@@ -6,7 +6,11 @@
         "build": "next build --turbopack",
         "start": "next start",
         "delete": "rm -rf app/n",
-        "prepare": "husky"
+        "prepare": "husky",
+        "lint": "eslint .",
+        "lint:fix": "eslint --fix .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
     },
     "dependencies": {
         "@next/mdx": "16.1.5",
@@ -21,6 +25,8 @@
         "sugar-high": "^0.9.3"
     },
     "devDependencies": {
+        "@commitlint/cli": "^21.0.2",
+        "@commitlint/config-conventional": "^21.0.2",
         "@craig37/lint-config": "^1.0.11",
         "@eslint/js": "^9.39.4",
         "@types/node": "^22.15.29",
