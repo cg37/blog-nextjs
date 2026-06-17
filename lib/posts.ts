@@ -46,15 +46,10 @@ export async function getAllPosts(): Promise<Post[]> {
                         // 先尝试 content.mdx (新结构)
                         mod = await import(`../app/n/${year}/${article}/content.mdx`);
                     } catch {
-                        try {
-                            // 失败则尝试 page.mdx (旧结构)
-                            mod = await import(`../app/n/${year}/${article}/page.mdx`);
-                        } catch {
-                            console.warn(
-                                `Failed to import metadata from ${year}/${article} (tried content.mdx and page.mdx)`
-                            );
-                            continue;
-                        }
+                        console.warn(
+                            `Failed to import metadata from ${year}/${article} (tried content.mdx)`
+                        );
+                        continue;
                     }
 
                     const postMetadata = mod?.metadata;
