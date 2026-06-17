@@ -9,6 +9,159 @@ export const metadata = {
     }
 };
 
-最近在
+之前一直习惯使用`export const enum` 来定义枚举类型, 这样会减少打包体积(效果微乎其微),
+但是最近在使用AI工具做代码CR的时候, AI一直提示`export const enum`在某些情况下会导致类型推导不准确,
+甚至出现类型错误,
+本文通过实际测试来验证下
+
+先写一段测试代码
+
+```ts
+// 常规enum
+export enum NormalEnum {
+    RED = "red",
+    GREEN = "green"
+}
+
+//const enum
+export const enum ConstEnum {
+    RED = "red",
+    GREEN = "green"
+}
+
+// 更推荐的现代写法
+export const ObjectAsConst = {
+    RED: "red",
+    GREEN: "green"
+} as const;
+
+export type StatusType = (typeof ConstEnum)[keyof typeof ConstEnum];
+
+console.log("-----------1 常规enum-----------");
+console.log(NormalEnum.RED);
+console.log(NormalEnum);
+console.log(Object.keys(NormalEnum));
+
+console.log("-----------2 const enum-----------");
+console.log(ConstEnum.RED);
+console.log(Object.keys(ConstEnum));
+console.log(ConstEnum);
+
+console.log("-----------3 object as const-----------");
+console.log(ObjectAsConst.RED);
+console.log(ObjectAsConst);
+console.log(Object.keys(ObjectAsConst));
+```
+
+从基础的打印输出开始看
+
+## 常规enum
+
+```ts
+console.log("-----------1 常规enum-----------");
+console.log(NormalEnum.RED);
+console.log(Object.keys(NormalEnum));
+
+//输出结果
+-----------1 常规enum-----------
+red
+{ RED: 'red', GREEN: 'green' }
+[ 'RED', 'GREEN' ]
+```
+
+这个是没有问题的, 也不会有任何报错
+
+## const enum
+
+```ts
+console.log("-----------2 const enum-----------");
+console.log(ConstEnum.RED);
+console.log(Object.keys(ConstEnum));
+console.log(ConstEnum);
+```
+
+而这里的`console.log(Object.keys(ConstEnum))`,`console.log(ConstEnum)`两条, 编译时会报错:
+
+> 'const' enums can only be used in property
+> or index access expressions or the right hand side of
+> an import declaration or export assignment or type query.ts(2475)
+
+## 现代写法
+
+```ts
+console.log("-----------3 object as const-----------");
+console.log(ObjectAsConst.RED);
+console.log(ObjectAsConst);
+console.log(Object.keys(ObjectAsConst));
+
+-----------3 object as const-----------
+red
+{ RED: 'red', GREEN: 'green' }
+[ 'RED', 'GREEN' ]
+```
+
+同样没有任何问题, 也不会有报错
+
+# 编译测试
+
+这里再来看用`tsc`编译后的文件,
+注意这里执行 `tsc`命令时需要注释掉`console.log(Object.keys(ConstEnum))`
+和 `console.log(ConstEnum)`这两行, 它们会导致编译错误
+
+```js
+// 常规enum
+export var NormalEnum;
+(function (NormalEnum) {
+    NormalEnum["RED"] = "red";
+    NormalEnum["GREEN"] = "green";
+})(NormalEnum || (NormalEnum = {}));
+// 更推荐的现代写法
+export const ObjectAsConst = {
+    RED: "red",
+    GREEN: "green"
+};
+console.log("-----------1 常规enum-----------");
+console.log(NormalEnum.RED);
+console.log(NormalEnum);
+console.log(Object.keys(NormalEnum));
+console.log("-----------2 const enum-----------");
+console.log("red" /* ConstEnum.RED */);
+// console.log(Object.keys(ConstEnum));
+// console.log(ConstEnum);
+console.log("-----------3 object as const-----------");
+console.log(ObjectAsConst.RED);
+console.log(ObjectAsConst);
+console.log(Object.keys(ObjectAsConst));
+```
+
+## 差异总结
+
+可以看到`ConstEnum`直接消失不见了, `ConstEnum.RED`被直接替换成了对应的值`"red"`,
+这也是为什么它不能被当做一个普通对象来使用,
+
+### 1. 编译时“偷梁换柱”
+
+当 TypeScript 编译器(tsc)解析代码时，如果发现你使用的是 `const enum`,
+它会认为：“这个枚举的值在编译时就是绝对确定的，永远不会改变。”
+因此，编译器不会在生成的 `.js` 文件中为该枚举创建任何对象。而是在在编译阶段,
+直接扫描代码中所有引用该枚举的地方，并将其原地替换为具体的字面量值。
+
+### 2. 无法反射
+
+普通`enum`, 编译器必须生成一个真实的JS对象, 并建立键到值, 值到键的**双向映射**(为了支持反向查找)
+`const enum`直接抹除定义, 只保留替换后的字面量, 因此无法通过反射的方式获取枚举成员的名称或值, 只能直接使用字面量值
+
+# 最佳实践
+
+因为`const enum`的这些特性, 个人理解的最佳实践是:放弃使用任何形式的`enum`, 改用`as const`断言的对象或数组
+
+## 为什么推荐`as const`
+
+1. 更纯粹的运行时表现, `as const`在运行时生成的普通的只读对象, 没有`enum`的双向映射(开发中极少用到)
+2. 支持`Tree-Shaking`, 标准的 ES Module 导出对象, 现代打包工具可以完美地移除未使用代码
+3. 兼容现代构建工具：现代构建工具(如 Vite 使用的 esbuild/SWC,或 Babel)通常默认开启 `isolatedModules`(单文件编译模式)。
+   在这种模式下, `const enum` 会直接导致编译报错（除非配置 `preserveConstEnums`,但这又违背了它减少体积的初衷. 而
+   `as const` 完全兼容任何构建工具
+4. 类型推导同样精准：配合 `typeof` 和 `keyof`, `as const` 能够提供极窄的字面量类型推导，完全满足类型安全的需求。
 
 <br />
