@@ -42,17 +42,7 @@ export async function getAllPosts(): Promise<Post[]> {
                 for (const article of articles) {
                     try {
                         // 先尝试 content.mdx (新结构)，失败则尝试 page.mdx (旧结构)
-                        let metadata;
-                        let articlePath;
-                        try {
-                            metadata = (await import(`../app/n/${year}/${article}/content.mdx`))
-                                .metadata;
-                            articlePath = `/app/n/${year}/${article}/content.mdx`;
-                        } catch {
-                            metadata = (await import(`../app/n/${year}/${article}/page.mdx`))
-                                .metadata;
-                            articlePath = `/app/n/${year}/${article}/page.mdx`;
-                        }
+                        const metadata = await import(`../app/n/${year}/${article}/content.mdx`);
 
                         if (metadata && metadata.title && metadata.date) {
                             posts.push({
@@ -99,7 +89,7 @@ export function formatDate(dateString: string): string {
         const day = date.getDate().toString().padStart(2, "0");
         return `${month}-${day}`;
     } catch (error) {
-        console.warn(`Invalid date format: ${dateString}`);
+        console.warn(`Invalid date format: ${dateString}, ${error}`);
         return dateString;
     }
 }
@@ -115,7 +105,7 @@ export function formatDateFull(dateString: string): string {
             })
             .replace(/\//g, "-");
     } catch (error) {
-        console.warn(`Invalid date format: ${dateString}`);
+        console.warn(`Invalid date format: ${dateString}, ${error}`);
         return dateString;
     }
 }
@@ -129,7 +119,7 @@ export function formatDateReadable(dateString: string): string {
             day: "numeric"
         });
     } catch (error) {
-        console.warn(`Invalid date format: ${dateString}`);
+        console.warn(`Invalid date format: ${dateString}, ${error}`);
         return dateString;
     }
 }
@@ -137,12 +127,7 @@ export function formatDateReadable(dateString: string): string {
 export async function getPostBySlug(year: string, slug: string): Promise<Post | null> {
     try {
         // 先尝试 content.mdx (新结构)，失败则尝试 page.mdx (旧结构)
-        let metadata;
-        try {
-            metadata = (await import(`../app/n/${year}/${slug}/content.mdx`)).metadata;
-        } catch {
-            metadata = (await import(`../app/n/${year}/${slug}/page.mdx`)).metadata;
-        }
+        const metadata = (await import(`../app/n/${year}/${slug}/content.mdx`)).metadata;
 
         if (metadata && metadata.title && metadata.date) {
             return {
