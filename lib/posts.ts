@@ -5,6 +5,7 @@ export interface PostMetadata {
     title: string;
     date: string; // YYYY-MM-DD 格式
     description?: string;
+    category?: string;
     tags?: string[];
     alternates: {
         canonical: string;
@@ -13,7 +14,6 @@ export interface PostMetadata {
 
 export interface Post extends PostMetadata {
     href: string;
-    year: number;
     slug: string;
 }
 
@@ -22,49 +22,31 @@ export async function getAllPosts(): Promise<Post[]> {
     const posts: Post[] = [];
 
     try {
-        // 获取所有年份目录
-        const years = fs
+        // 直接扫描 app/n/ 下的所有子目录
+        const articles = fs
             .readdirSync(postsDirectory, { withFileTypes: true })
             .filter((dirent) => dirent.isDirectory())
-            .map((dirent) => dirent.name)
-            .filter((name) => /^\d{4}$/.test(name)); // 只匹配四位数字的年份
+            .map((dirent) => dirent.name);
 
-        for (const year of years) {
-            const yearPath = path.join(postsDirectory, year);
-
+        for (const article of articles) {
             try {
-                // 获取该年份下的所有文章目录
-                const articles = fs
-                    .readdirSync(yearPath, { withFileTypes: true })
-                    .filter((dirent) => dirent.isDirectory())
-                    .map((dirent) => dirent.name);
+                // 先尝试 content.mdx (新结构)，失败则尝试 page.mdx (旧结构)
+                let metadata;
+                try {
+                    metadata = (await import(`../app/n/${article}/content.mdx`)).metadata;
+                } catch {
+                    metadata = (await import(`../app/n/${article}/page.mdx`)).metadata;
+                }
 
-                for (const article of articles) {
-                    try {
-                        // 先尝试 content.mdx (新结构)，失败则尝试 page.mdx (旧结构)
-                        let metadata;
-                        try {
-                            metadata = (await import(`../app/n/${year}/${article}/content.mdx`))
-                                .metadata;
-                        } catch {
-                            metadata = (await import(`../app/n/${year}/${article}/page.mdx`))
-                                .metadata;
-                        }
-
-                        if (metadata && metadata.title && metadata.date) {
-                            posts.push({
-                                ...metadata,
-                                href: `/n/${year}/${article}`,
-                                year: parseInt(year),
-                                slug: article
-                            });
-                        }
-                    } catch (error) {
-                        console.warn(`Failed to import metadata from ${year}/${article}:`, error);
-                    }
+                if (metadata && metadata.title && metadata.date) {
+                    posts.push({
+                        ...metadata,
+                        href: `/n/${article}`,
+                        slug: article
+                    });
                 }
             } catch (error) {
-                console.warn(`Failed to read directory ${yearPath}:`, error);
+                console.warn(`Failed to import metadata from ${article}:`, error);
             }
         }
 
@@ -76,17 +58,23 @@ export async function getAllPosts(): Promise<Post[]> {
     }
 }
 
-export function groupPostsByYear(posts: Post[]): Record<number, Post[]> {
-    return posts.reduce(
-        (acc, post) => {
-            if (!acc[post.year]) {
-                acc[post.year] = [];
-            }
-            acc[post.year].push(post);
-            return acc;
-        },
-        {} as Record<number, Post[]>
-    );
+export function groupPostsByCategory(posts: Post[]): Record<string, Post[]> {
+    const grouped: Record<string, Post[]> = {};
+
+    for (const post of posts) {
+        const cat = post.category || "未分类";
+        if (!grouped[cat]) {
+            grouped[cat] = [];
+        }
+        grouped[cat].push(post);
+    }
+
+    // 每个分类内按日期降序
+    for (const cat of Object.keys(grouped)) {
+        grouped[cat].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+
+    return grouped;
 }
 
 export function formatDate(dateString: string): string {
