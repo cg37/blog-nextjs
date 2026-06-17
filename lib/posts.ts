@@ -40,20 +40,32 @@ export async function getAllPosts(): Promise<Post[]> {
                     .map((dirent) => dirent.name);
 
                 for (const article of articles) {
-                    try {
-                        // 先尝试 content.mdx (新结构)，失败则尝试 page.mdx (旧结构)
-                        const metadata = await import(`../app/n/${year}/${article}/content.mdx`);
+                    let mod: { metadata?: Record<string, unknown> } | undefined;
 
-                        if (metadata && metadata.title && metadata.date) {
-                            posts.push({
-                                ...metadata,
-                                href: `/n/${year}/${article}`,
-                                year: parseInt(year),
-                                slug: article
-                            });
+                    try {
+                        // 先尝试 content.mdx (新结构)
+                        mod = await import(`../app/n/${year}/${article}/content.mdx`);
+                    } catch {
+                        try {
+                            // 失败则尝试 page.mdx (旧结构)
+                            mod = await import(`../app/n/${year}/${article}/page.mdx`);
+                        } catch {
+                            console.warn(
+                                `Failed to import metadata from ${year}/${article} (tried content.mdx and page.mdx)`
+                            );
+                            continue;
                         }
-                    } catch (error) {
-                        console.warn(`Failed to import metadata from ${year}/${article}:`, error);
+                    }
+
+                    const postMetadata = mod?.metadata;
+
+                    if (postMetadata?.title && postMetadata?.date) {
+                        posts.push({
+                            ...(postMetadata as unknown as PostMetadata),
+                            href: `/n/${year}/${article}`,
+                            year: parseInt(year),
+                            slug: article
+                        });
                     }
                 }
             } catch (error) {
