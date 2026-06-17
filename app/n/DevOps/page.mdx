@@ -1,14 +1,124 @@
+import ImageWithPreview from "@/components/ImageWithPreview";
+
 export const metadata = {
     title: "NPM 发包的OIDC配置以及对应的GitHub Actions配置更改",
     date: "2026-06-17",
     category: "DevOps",
     tags: ["CI/CD", "DevOps", "NPM"],
-    description: "使用 OIDC 代替密码认证，安全高效地进行 NPM 发包",
+    description: "使用 OIDC 代替密码认证进行 NPM 发包",
     alternates: {
         canonical: "/n/DevOps"
     }
 };
 
-# test
+# NPM 发包的OIDC配置以及对应的GitHub Actions配置更改
+
+[NPM官方OIDC配置指南](https://docs.npmjs.com/trusted-publishers#supported-cicd-providers)
+
+使用NPM的Access Tokens做发包密钥检查还是存在泄露的风险, 目前NPM官方更推荐使用OIDC(OpenID Connect)来进行认证授权,
+不需要在GitHub Actions中存储任何敏感的密钥.
+
+本文将逐步讲解整个替换过程, 用时估计5-10mins, 包括NPM侧的配置以及CI/CD侧的配置更改.
+
+# NPM侧的OIDC配置
+
+在 `NPM` 包的Settings中, 第一个就是Trusted Publisher, 这个包发布流水线走的是`GitHub Actions`, 选择第一个
+
+<ImageWithPreview src="/images/npmsettings.png" alt="NPM Settings" />
+
+这里填的内容就比较常规, `user name` + `repository name`, ` workflow name`这里**只填文件名**不需要加路径,会自动去仓库的`.github/workflows/`下匹配
+
+环境名在目前版本无需填写
+
+<ImageWithPreview src="/images/trustPublisher.png" alt="NPM Settings" />
+
+最后这里的NPM是建议启用两步验证并禁用 token 验证的, 启用OIDC配置后之前配置给GitHub Actions配置的token就可以删除了
+
+<ImageWithPreview src="/images/packageAccess.png" alt="NPM Settings" />
+
+# GitHub Actions的配置文件更改
+
+首先需要删除之前配置的NPM token, 然后添加新的验证方式
+如果是第一次配置就可以直接添加新的验证方式了
+
+## 添加OIDC配置文件
+
+删除token
+原来的配置文件如下, 这里需要删除注释的两行
+
+```yml
+- name: Publish to npm
+    run: pnpm publish --no-git-checks
+    env: # Delete
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # Delete
+```
+
+在配置文件中添加下面这段
+
+```yml
+permissions:
+    id-token: write # Required for OIDC
+    contents: read
+```
+
+`node`版本需要改为`v6`
+
+```yml
+- uses: actions/checkout@v6
+
+- uses: actions/setup-node@v6
+  with:
+      node-version: "24"
+      registry-url: "https://registry.npmjs.org"
+      package-manager-cache: false # never use caching in release builds
+```
+
+完整的配置文件如下
+
+```yml
+name: Publish to npm
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    id-token: write # Required for OIDC
+    contents: read
+
+jobs:
+    publish:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write
+        env:
+            PNPM_MINIMUM_RELEASE_AGE: "0"
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v6 # 这里需要用v6
+
+            - name: Setup Node.js # 这里需要用v6, 建议整段复制
+              uses: actions/setup-node@v6
+              with:
+                  node-version: "24"
+                  registry-url: "https://registry.npmjs.org"
+                  package-manager-cache: false
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
+              with:
+                  version: 10
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build
+              run: pnpm build
+
+            - name: Publish to npm
+              run: pnpm publish --no-git-checks
+```
 
 <br />
