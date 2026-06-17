@@ -29,7 +29,7 @@ export async function highlightCode(code: string, lang: string = "text"): Promis
                 light: "github-light",
                 dark: "github-dark"
             },
-            defaultColor: "light"
+            defaultColor: "dark"
         });
 
         // console.log('codeToHtml', html)
