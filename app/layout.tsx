@@ -36,12 +36,7 @@ export default function RootLayout({
 }
 
 function Footer() {
-    const links = [
-        { name: "@johnsmith", url: "https://x.com/johnsmith" },
-        { name: "youtube", url: "https://www.youtube.com/@johnsmith" },
-        { name: "linkedin", url: "https://www.linkedin.com/in/johnsmith" },
-        { name: "github", url: "https://github.com/johnsmith" }
-    ];
+    const links = [{ name: "github", url: "https://github.com/cg37" }];
 
     return (
         <footer className="mt-12 text-center">
